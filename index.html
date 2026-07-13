@@ -86,6 +86,10 @@
   .seg button.active{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(28,25,23,.1)}
   .meta{font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.3px;
     font-variant-numeric:tabular-nums}
+  .btn-clear{background:transparent;color:var(--muted);border:1px solid var(--hairline-strong);
+    height:auto;padding:7px 14px;font-size:12.5px;font-weight:600}
+  .btn-clear:hover{background:var(--error);border-color:var(--error);color:var(--on-accent)}
+  .btn-clear[hidden]{display:none}
   /* ===== period groups ===== */
   .period{margin-bottom:34px}
   .period-head{display:flex;align-items:baseline;gap:12px;padding:8px 0 10px;
@@ -207,6 +211,7 @@
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <div class="chips" id="filterChips"></div>
       <span class="meta" id="statMeta"></span>
+      <button class="btn-clear" id="btnClear" hidden>목록 비우기</button>
     </div>
   </div>
   <div id="results"></div>
@@ -381,6 +386,7 @@ function currentArticles(){
 function render(){
   const arts=currentArticles();
   const res=$('#results');
+  $('#btnClear').hidden = Object.keys(store.articles()).length===0;
   $('#statMeta').textContent = arts.length ? `총 ${arts.length.toLocaleString()}건` : '';
   if(!arts.length){
     res.innerHTML=`<div class="empty-state"><div class="big">표시할 뉴스가 없습니다</div>
@@ -463,10 +469,22 @@ function saveModal(){
   toast(p?'프록시 저장됨':'데모 모드로 저장됨');
 }
 
+/* ===================== 목록 비우기 ===================== */
+function clearAll(){
+  const n=Object.keys(store.articles()).length;
+  if(!n) return;
+  if(!confirm(`수집된 뉴스 ${n.toLocaleString()}건을 전체 목록에서 삭제할까요? 키워드는 유지됩니다.`)) return;
+  store.setArticles({});
+  store.setFilter('__all__');
+  renderFilters(); render();
+  toast(`뉴스 ${n.toLocaleString()}건을 비웠습니다`);
+}
+
 /* ===================== 이벤트 ===================== */
 $('#kwAdd').onclick=addKeyword;
 $('#kwInput').addEventListener('keydown',e=>{ if(e.key==='Enter') addKeyword(); });
 $('#btnUpdate').onclick=update;
+$('#btnClear').onclick=clearAll;
 $('#btnSettings').onclick=openModal;
 $('#modalCancel').onclick=closeModal;
 $('#modalSave').onclick=saveModal;
