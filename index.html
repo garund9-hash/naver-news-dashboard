@@ -243,9 +243,12 @@ async function addKeyword(){
 }
 function removeKeyword(k){
   store.setKeywords(store.keywords().filter(x=>x!==k));
+  const arts=store.articles(); let removed=0;
+  Object.keys(arts).forEach(id=>{ if(arts[id].keyword===k){ delete arts[id]; removed++; } });
+  store.setArticles(arts);
   if(store.filter()===k) store.setFilter('__all__');
   renderKeywords(); render();
-  toast(`"${k}" 삭제됨`);
+  toast(`"${k}" 삭제됨 · 관련 뉴스 ${removed}건 제거`);
 }
 
 /* ===================== 필터 ===================== */
