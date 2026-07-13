@@ -48,11 +48,16 @@ npx wrangler login
 npx wrangler secret put NAVER_CLIENT_ID
 npx wrangler secret put NAVER_CLIENT_SECRET
 
+# (권장) 오픈 프록시 남용 방지용 공유 토큰 — 대시보드 설정에도 동일 값 입력
+npx wrangler secret put ACCESS_TOKEN
+
 # 배포
 npx wrangler deploy
 ```
 
 배포가 끝나면 `https://naver-news-proxy.<계정>.workers.dev` 형태의 주소가 출력됩니다. 이 주소를 복사해 둡니다.
+
+> **보안:** Worker URL만 알면 누구나 네이버 할당량을 소모할 수 있습니다. `ACCESS_TOKEN` Secret을 설정하고 대시보드 **설정 → 접근 토큰**에 같은 값을 넣으세요. `wrangler.toml`의 `ALLOW_ORIGIN`은 GitHub Pages 출처로 제한하는 것이 좋습니다.
 
 정상 동작 확인 — 브라우저 주소창에 아래를 넣어 JSON이 나오면 성공입니다.
 
@@ -72,8 +77,9 @@ https://naver-news-proxy.<계정>.workers.dev?query=규제개혁&display=5&sort=
 ### 4단계 · 대시보드에 프록시 연결
 
 1. 대시보드 접속 → 우측 상단 **⚙ 설정**
-2. **프록시 URL** 에 2단계에서 받은 Worker 주소 입력 → 저장
-3. 키워드를 추가하고 **↻ 업데이트** 클릭 → 네이버 뉴스가 월별·일별로 채워집니다.
+2. **프록시 URL** 에 2단계에서 받은 Worker 주소 입력 (`https://` 만 허용)
+3. Worker에 `ACCESS_TOKEN` 을 넣었다면 **접근 토큰**에 동일 값 입력 → 저장
+4. 키워드를 추가하고 **↻ 업데이트** 클릭 → 네이버 뉴스가 월별·일별로 채워집니다.
 
 ---
 
@@ -89,10 +95,48 @@ https://naver-news-proxy.<계정>.workers.dev?query=규제개혁&display=5&sort=
 
 | 파일 | 역할 |
 |------|------|
-| `index.html` | 대시보드 (GitHub Pages에 배포) |
+| `index.html` | 대시보드 마크업·CSS (GitHub Pages에 배포) |
+| `src/` | 클라이언트 로직 (ES modules, 번들러 없음) |
+| `src/main.js` | UI 오케스트레이션·이벤트 진입점 |
+| `src/app/collector.js` | 수집 파사드 (source → toArticle → merge) |
+| `src/sources/` | 뉴스 소스 Strategy (Live 프록시 / Demo) |
+| `src/domain/` | 기사·날짜·기간 그룹 도메인 로직 |
+| `src/data/storage.js` | localStorage 저장소 |
+| `src/ui/dom.js` | DOM 유틸 (`query`, toast, escape, button loading) |
 | `worker.js` | 네이버 API 프록시 (Cloudflare Worker에 배포) |
 | `wrangler.toml` | Worker 배포 설정 |
 | `README.md` | 이 문서 |
+
+### 로컬 미리보기
+
+ES modules는 `file://`로 열면 로드되지 않습니다. HTTP 서버로 루트를 서빙하세요.
+
+```bash
+# 예: Python
+python3 -m http.server 8080
+# 예: npx
+npx --yes serve -l 8080 .
+```
+
+브라우저에서 `http://localhost:8080` 접속.
+
+GitHub Pages 배포 시에는 `index.html`과 함께 **`src/` 폴더 전체**를 올리면 됩니다.
+
+### 단위 테스트
+
+Node 내장 테스트 러너만 사용합니다 (추가 패키지 설치 없음).
+
+```bash
+npm test
+```
+
+| 경로 | 대상 |
+|------|------|
+| `tests/domain/*` | URL 안전성, 기사 변환/병합, 날짜, 그룹핑 |
+| `tests/data/storage.test.js` | localStorage 검증·클램프 |
+| `tests/app/collector.test.js` | 수집 파사드 (DI 목) |
+| `tests/worker/helpers.test.js` | Worker 순수 헬퍼 (클램프, 토큰, Origin) |
+| `tests/ui/dom.test.js` | escape / 버튼 로딩 |
 
 ## 참고 · 제약
 
