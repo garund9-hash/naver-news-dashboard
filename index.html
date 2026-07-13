@@ -223,13 +223,23 @@ function renderKeywords(){
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s){ return escapeHtml(s); }
-function addKeyword(){
+async function addKeyword(){
   const inp=$('#kwInput'); let v=inp.value.trim();
   if(!v) return;
   const ks=store.keywords();
   if(ks.includes(v)){ toast('이미 등록된 키워드입니다'); return; }
-  ks.push(v); store.setKeywords(ks); inp.value=''; renderKeywords();
-  toast(`"${v}" 추가됨 · 업데이트를 눌러 수집하세요`);
+  ks.push(v); store.setKeywords(ks); inp.value='';
+  store.setFilter(v);
+  renderKeywords();
+
+  const btn=$('#kwAdd'); btn.disabled=true; const orig=btn.innerHTML;
+  btn.innerHTML='<span class="spin"></span>수집 중…';
+  try{
+    const r=await collectKeyword(v);
+    store.setUpdated(new Date().toISOString());
+    render(); renderBanner();
+    toast(r.failed ? `"${v}" 추가됨 · 수집 실패` : `"${v}" 추가됨 · 신규 ${r.added}건`);
+  }finally{ btn.disabled=false; btn.innerHTML=orig; }
 }
 function removeKeyword(k){
   store.setKeywords(store.keywords().filter(x=>x!==k));
@@ -248,28 +258,33 @@ function renderFilters(){
 }
 
 /* ===================== 수집 ===================== */
+async function collectKeyword(k){
+  if(!store.proxy()){
+    return { added: mergeArticles(demoArticles([k])), failed:false };
+  }
+  try{
+    const proxy=store.proxy(); const disp=store.display();
+    const url=`${proxy.replace(/\/$/,'')}?query=${encodeURIComponent(k)}&display=${disp}&sort=date`;
+    const res=await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const items=(data.items||[]).map(it=>normalize(it,k));
+    return { added: mergeArticles(items), failed:false };
+  }catch(e){
+    return { added:0, failed:true };
+  }
+}
 async function update(){
   const ks=store.keywords();
   if(!ks.length){ toast('먼저 키워드를 추가하세요'); return; }
   const btn=$('#btnUpdate'); btn.disabled=true; const orig=btn.innerHTML;
   btn.innerHTML='<span class="spin"></span>수집 중…';
-  const proxy=store.proxy(); const disp=store.display();
   let added=0, failed=[];
   try{
-    if(!proxy){
-      const demo=demoArticles(ks);
-      added=mergeArticles(demo);
-    }else{
-      for(const k of ks){
-        try{
-          const url=`${proxy.replace(/\/$/,'')}?query=${encodeURIComponent(k)}&display=${disp}&sort=date`;
-          const res=await fetch(url);
-          if(!res.ok) throw new Error('HTTP '+res.status);
-          const data=await res.json();
-          const items=(data.items||[]).map(it=>normalize(it,k));
-          added+=mergeArticles(items);
-        }catch(e){ failed.push(k); }
-      }
+    for(const k of ks){
+      const r=await collectKeyword(k);
+      added+=r.added;
+      if(r.failed) failed.push(k);
     }
     store.setUpdated(new Date().toISOString());
     render(); renderBanner();
